@@ -1,3 +1,4 @@
+// 1. Keep your repositories at the top
 allprojects {
     repositories {
         google()
@@ -7,10 +8,24 @@ allprojects {
 
 rootProject.buildDir = "../build"
 
+// 2. This block fixes the "Namespace not specified" error for 'telephony'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+    
+    afterEvaluate { project ->
+        // Check if the subproject (like telephony) is an Android project
+        if (project.hasProperty('android')) {
+            project.android {
+                // If the plugin developer forgot to set a namespace, we set it here
+                if (namespace == null) {
+                    namespace project.group
+                }
+            }
+        }
+    }
 }
 
+// 3. Keep your existing app dependency logic
 subprojects {
     project.evaluationDependsOn(":app")
 }
