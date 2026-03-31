@@ -15,26 +15,6 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-/**
- * FIX: This block forces a namespace on plugins like 'telephony' 
- * that are missing one, which is required by AGP 8.0+.
- */
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            if (project.android.namespace == null) {
-                // If it's the telephony plugin, we set its specific namespace
-                if (project.name == 'telephony') {
-                    project.android.namespace = "com.shounakmulay.telephony"
-                } else {
-                    // Otherwise, use the project group as a fallback
-                    project.android.namespace = project.group
-                }
-            }
-        }
-    }
-}
-
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
