@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   // ⚠️  Change this to your actual backend URL
-  static const String baseUrl = 'https://your-kashio-backend.com';
+  static const String baseUrl = 'https://kashio-api.alphayele.com';
 
   final Dio _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
