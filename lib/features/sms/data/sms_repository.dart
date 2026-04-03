@@ -7,13 +7,11 @@ class SmsRepository {
 
   SmsRepository({required this.smsService});
 
-  Future<bool> requestPermission() => smsService.requestPermission();
-
   Future<List<Transaction>> getTransactions() async {
     final rawMessages = await smsService.fetchMpesaSms();
     return rawMessages
         .map((raw) => MpesaParser.parse(raw))
-        .where((t) => t != null)
+        .where((t) => t != null && t.type != 'UNKNOWN')
         .cast<Transaction>()
         .toList();
   }

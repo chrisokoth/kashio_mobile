@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../providers/transaction_provider.dart';
@@ -32,7 +33,6 @@ class _SmsScreenState extends State<SmsScreen> {
           appBar: AppBar(
             title: const Text('Kashio'),
             actions: [
-              // Filter button
               PopupMenuButton<String>(
                 icon: const Icon(Icons.filter_list_rounded),
                 onSelected: provider.setFilter,
@@ -42,7 +42,6 @@ class _SmsScreenState extends State<SmsScreen> {
                   PopupMenuItem(value: 'EXPENSE', child: Text('Expenses')),
                 ],
               ),
-              // Auth button
               if (authProvider.status == AuthStatus.authenticated)
                 IconButton(
                   icon: const Icon(Icons.person_rounded),
@@ -50,16 +49,22 @@ class _SmsScreenState extends State<SmsScreen> {
                 )
               else
                 TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AuthScreen()),
-                  ),
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AuthScreen()),
+                    );
+                    // Reload after login
+                    if (mounted) {
+                      context.read<TransactionProvider>().loadTransactions();
+                    }
+                  },
                   child: const Text('Login',
                       style: TextStyle(color: Colors.white)),
                 ),
             ],
           ),
-          body: _buildBody(provider),
+          body: _buildBody(context, provider),
           floatingActionButton: authProvider.status == AuthStatus.authenticated
               ? FloatingActionButton.extended(
                   onPressed: provider.isSyncing ? null : provider.syncToBackend,
@@ -79,7 +84,7 @@ class _SmsScreenState extends State<SmsScreen> {
     );
   }
 
-  Widget _buildBody(TransactionProvider provider) {
+  Widget _buildBody(BuildContext context, TransactionProvider provider) {
     if (provider.loadState == LoadState.loading) {
       return const Center(
         child: Column(
@@ -110,14 +115,26 @@ class _SmsScreenState extends State<SmsScreen> {
                 style: const TextStyle(color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: provider.loadTransactions,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryGreen,
-                    foregroundColor: Colors.white),
-              ),
+              if (provider.permissionDeniedPermanently)
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await ph.openAppSettings();
+                  },
+                  icon: const Icon(Icons.settings_rounded),
+                  label: const Text('Open App Settings'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen,
+                      foregroundColor: Colors.white),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: provider.loadTransactions,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen,
+                      foregroundColor: Colors.white),
+                ),
             ],
           ),
         ),
@@ -129,16 +146,11 @@ class _SmsScreenState extends State<SmsScreen> {
       onRefresh: provider.loadTransactions,
       child: CustomScrollView(
         slivers: [
-          // Sync message banner
           if (provider.syncMessage != null)
             SliverToBoxAdapter(
               child: _SyncBanner(message: provider.syncMessage!),
             ),
-
-          // Summary widget
           const SliverToBoxAdapter(child: SummaryWidget()),
-
-          // Filter label
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -166,19 +178,22 @@ class _SmsScreenState extends State<SmsScreen> {
               ),
             ),
           ),
-
-          // Transactions list
           if (provider.transactions.isEmpty)
             SliverFillRemaining(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.inbox_rounded,
-                        size: 64, color: Colors.grey[300]),
+                    Icon(Icons.inbox_rounded, size: 64, color: Colors.grey[300]),
                     const SizedBox(height: 12),
-                    const Text('No transactions found',
+                    const Text('No M-PESA transactions found',
                         style: TextStyle(color: AppTheme.textSecondary)),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: provider.loadTransactions,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Reload'),
+                    ),
                   ],
                 ),
               ),
@@ -190,8 +205,6 @@ class _SmsScreenState extends State<SmsScreen> {
                 childCount: provider.transactions.length,
               ),
             ),
-
-          // Bottom padding
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
@@ -203,8 +216,8 @@ class _SmsScreenState extends State<SmsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Account'),
-        content:
-            const Text('You are logged in to Kashio.\nSync transactions using the button below.'),
+        content: const Text(
+            'You are logged in to Kashio.\nSync transactions using the button below.'),
         actions: [
           TextButton(
             onPressed: () {
