@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/auth_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'features/sms/presentation/sms_screen.dart';
+import 'features/auth/auth_screen.dart';
 import 'features/auth/auth_service.dart';
 import 'features/sync/api_service.dart';
 import 'features/sms/data/sms_service.dart';
@@ -39,8 +40,30 @@ class KashioApp extends StatelessWidget {
         title: 'Kashio',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const SmsScreen(),
+        home: const RootScreen(),
       ),
+    );
+  }
+}
+
+class RootScreen extends StatelessWidget {
+  const RootScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        switch (auth.status) {
+          case AuthStatus.unknown:
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          case AuthStatus.authenticated:
+            return const SmsScreen();
+          case AuthStatus.unauthenticated:
+            return const AuthScreen();
+        }
+      },
     );
   }
 }

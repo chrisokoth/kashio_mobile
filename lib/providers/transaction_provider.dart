@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../features/sms/data/sms_model.dart';
@@ -22,7 +21,6 @@ class TransactionProvider extends ChangeNotifier {
   String? _syncMessage;
   String _filter = 'ALL';
   String? _deviceId;
-  bool _permissionDeniedPermanently = false;
 
   List<Transaction> get transactions => _filtered;
   LoadState get loadState => _loadState;
@@ -30,8 +28,6 @@ class TransactionProvider extends ChangeNotifier {
   String? get error => _error;
   String? get syncMessage => _syncMessage;
   String get filter => _filter;
-  bool get permissionDeniedPermanently => _permissionDeniedPermanently;
-  bool get hasTransactions => _all.isNotEmpty;
 
   double get totalIncome =>
       _all.where((t) => t.isIncome).fold(0, (sum, t) => sum + t.amount);
@@ -58,51 +54,62 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadTransactions() async {
+  // Called when user presses Sync button
+  Future<void> syncToBackend() async {
     _loadState = LoadState.loading;
     _error = null;
-    _permissionDeniedPermanently = false;
+    _syncMessage = null;
     notifyListeners();
 
     try {
-      // Check current permission status first
-      final status = await Permission.sms.status;
-
-      if (status.isPermanentlyDenied) {
+      final granted = await smsRepository.requestPermission();
+      if (!granted) {
         _loadState = LoadState.error;
-        _permissionDeniedPermanently = true;
-        _error = 'SMS permission permanently denied. Please enable it in App Settings.';
+        _error = 'SMS permission denied. Please allow SMS access when prompted.';
         notifyListeners();
         return;
       }
 
-      if (!status.isGranted) {
-        final result = await Permission.sms.request();
-        if (!result.isGranted) {
-          _loadState = LoadState.error;
-          _permissionDeniedPermanently = result.isPermanentlyDenied;
-          _error = result.isPermanentlyDenied
-              ? 'SMS permission permanently denied. Please enable it in App Settings.'
-              : 'SMS permission denied. Kashio needs SMS access to read M-PESA messages.';
-          notifyListeners();
-          return;
-        }
-      }
-
       _all = await smsRepository.getTransactions();
-
-      if (_all.isEmpty) {
-        _error = 'No M-PESA messages found in your inbox.';
-      }
-
       _applyFilter();
       _loadState = LoadState.loaded;
+      notifyListeners();
+
+      if (_all.isEmpty) {
+        _syncMessage = '✗ No M-PESA messages found in inbox.';
+        notifyListeners();
+        Future.delayed(const Duration(seconds: 4), () {
+          _syncMessage = null;
+          notifyListeners();
+        });
+        return;
+      }
+
+      await _initDeviceId();
+      _isSyncing = true;
+      notifyListeners();
+
+      final result = await apiService.syncTransactions(
+        deviceId: _deviceId!,
+        transactions: _all,
+      );
+
+      _isSyncing = false;
+      _syncMessage = result.success
+          ? '✓ Synced ${result.queued} messages to Kashio'
+          : '✗ Sync failed: ${result.error}';
+      notifyListeners();
+
+      Future.delayed(const Duration(seconds: 4), () {
+        _syncMessage = null;
+        notifyListeners();
+      });
     } catch (e) {
       _loadState = LoadState.error;
-      _error = 'Failed to load messages: ${e.toString()}';
+      _isSyncing = false;
+      _error = 'Failed: ${e.toString()}';
+      notifyListeners();
     }
-
-    notifyListeners();
   }
 
   void setFilter(String f) {
@@ -124,61 +131,8 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> syncToBackend() async {
-    // If no messages loaded yet, try loading first
-    if (_all.isEmpty && _loadState != LoadState.loaded) {
-      await loadTransactions();
-      if (_all.isEmpty) {
-        _syncMessage = '✗ No messages to sync. Load messages first.';
-        notifyListeners();
-        Future.delayed(const Duration(seconds: 4), () {
-          _syncMessage = null;
-          notifyListeners();
-        });
-        return;
-      }
-    }
-
-    final isLoggedIn = await authService.isLoggedIn();
-    if (!isLoggedIn) {
-      _syncMessage = '✗ Please log in to sync transactions.';
-      notifyListeners();
-      Future.delayed(const Duration(seconds: 4), () {
-        _syncMessage = null;
-        notifyListeners();
-      });
-      return;
-    }
-
-    _isSyncing = true;
-    _syncMessage = null;
-    notifyListeners();
-
-    await _initDeviceId();
-
-    final result = await apiService.syncTransactions(
-      deviceId: _deviceId!,
-      transactions: _all,
-    );
-
-    _isSyncing = false;
-    _syncMessage = result.success
-        ? '✓ Synced ${result.queued} messages to Kashio'
-        : '✗ Sync failed: ${result.error}';
-    notifyListeners();
-
-    Future.delayed(const Duration(seconds: 4), () {
-      _syncMessage = null;
-      notifyListeners();
-    });
-  }
-
   void clearSyncMessage() {
     _syncMessage = null;
     notifyListeners();
-  }
-
-  Future<void> openAppSettings() async {
-    await openAppSettings();
   }
 }

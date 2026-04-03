@@ -44,7 +44,7 @@ class _AuthScreenState extends State<AuthScreen>
     return Scaffold(
       backgroundColor: AppTheme.backgroundGrey,
       appBar: AppBar(
-        title: const Text('Kashio Account'),
+        title: const Text('Kashio'),
         bottom: TabBar(
           controller: _tabs,
           indicatorColor: Colors.white,
@@ -58,12 +58,6 @@ class _AuthScreenState extends State<AuthScreen>
       ),
       body: Consumer<AuthProvider>(
         builder: (context, auth, _) {
-          if (auth.status == AuthStatus.authenticated) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pop(context);
-            });
-          }
-
           return TabBarView(
             controller: _tabs,
             children: [
@@ -185,8 +179,8 @@ class _LoginTab extends StatelessWidget {
               child: isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text('Login',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -264,8 +258,8 @@ class _RegisterTab extends StatelessWidget {
               child: isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text('Create Account',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -304,8 +298,7 @@ class _Field extends StatelessWidget {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: AppTheme.primaryGreen, width: 2),
+          borderSide: const BorderSide(color: AppTheme.primaryGreen, width: 2),
         ),
         filled: true,
         fillColor: Colors.white,

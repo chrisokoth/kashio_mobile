@@ -1,90 +1,96 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../providers/transaction_provider.dart';
 import '../../../features/auth/auth_provider.dart';
 import 'widgets/sms_card.dart';
 import 'widgets/summary_widget.dart';
-import '../../auth/auth_screen.dart';
 
-class SmsScreen extends StatefulWidget {
+class SmsScreen extends StatelessWidget {
   const SmsScreen({super.key});
 
   @override
-  State<SmsScreen> createState() => _SmsScreenState();
-}
-
-class _SmsScreenState extends State<SmsScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TransactionProvider>().loadTransactions();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Consumer2<TransactionProvider, AuthProvider>(
-      builder: (context, provider, authProvider, _) {
+    return Consumer<TransactionProvider>(
+      builder: (context, provider, _) {
         return Scaffold(
           backgroundColor: AppTheme.backgroundGrey,
           appBar: AppBar(
             title: const Text('Kashio'),
             actions: [
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.filter_list_rounded),
-                onSelected: provider.setFilter,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'ALL', child: Text('All')),
-                  PopupMenuItem(value: 'INCOME', child: Text('Income')),
-                  PopupMenuItem(value: 'EXPENSE', child: Text('Expenses')),
-                ],
-              ),
-              if (authProvider.status == AuthStatus.authenticated)
-                IconButton(
-                  icon: const Icon(Icons.person_rounded),
-                  onPressed: () => _showAccountDialog(context, authProvider),
-                )
-              else
-                TextButton(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AuthScreen()),
-                    );
-                    // Reload after login
-                    if (mounted) {
-                      context.read<TransactionProvider>().loadTransactions();
-                    }
-                  },
-                  child: const Text('Login',
-                      style: TextStyle(color: Colors.white)),
+              if (provider.loadState == LoadState.loaded)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.filter_list_rounded),
+                  onSelected: provider.setFilter,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'ALL', child: Text('All')),
+                    PopupMenuItem(value: 'INCOME', child: Text('Income')),
+                    PopupMenuItem(value: 'EXPENSE', child: Text('Expenses')),
+                  ],
                 ),
+              IconButton(
+                icon: const Icon(Icons.logout_rounded),
+                onPressed: () => _showLogoutDialog(context),
+              ),
             ],
           ),
           body: _buildBody(context, provider),
-          floatingActionButton: authProvider.status == AuthStatus.authenticated
-              ? FloatingActionButton.extended(
-                  onPressed: provider.isSyncing ? null : provider.syncToBackend,
-                  icon: provider.isSyncing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_upload_rounded),
-                  label: Text(provider.isSyncing ? 'Syncing...' : 'Sync'),
-                )
-              : null,
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: provider.isSyncing || provider.loadState == LoadState.loading
+                ? null
+                : provider.syncToBackend,
+            icon: provider.isSyncing || provider.loadState == LoadState.loading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_upload_rounded),
+            label: Text(
+              provider.isSyncing
+                  ? 'Syncing...'
+                  : provider.loadState == LoadState.loading
+                      ? 'Reading SMS...'
+                      : 'Sync Messages',
+            ),
+          ),
         );
       },
     );
   }
 
   Widget _buildBody(BuildContext context, TransactionProvider provider) {
+    if (provider.loadState == LoadState.idle) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.cloud_upload_rounded,
+                  size: 80, color: AppTheme.primaryGreen),
+              SizedBox(height: 24),
+              Text(
+                'Sync your M-PESA messages',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Press "Sync Messages" below to read your M-PESA SMS and send them to Kashio.',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (provider.loadState == LoadState.loading) {
       return const Center(
         child: Column(
@@ -115,35 +121,24 @@ class _SmsScreenState extends State<SmsScreen> {
                 style: const TextStyle(color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 20),
-              if (provider.permissionDeniedPermanently)
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    await ph.openAppSettings();
-                  },
-                  icon: const Icon(Icons.settings_rounded),
-                  label: const Text('Open App Settings'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryGreen,
-                      foregroundColor: Colors.white),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: provider.loadTransactions,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryGreen,
-                      foregroundColor: Colors.white),
-                ),
+              ElevatedButton.icon(
+                onPressed: provider.syncToBackend,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.white),
+              ),
             ],
           ),
         ),
       );
     }
 
+    // LoadState.loaded
     return RefreshIndicator(
       color: AppTheme.primaryGreen,
-      onRefresh: provider.loadTransactions,
+      onRefresh: provider.syncToBackend,
       child: CustomScrollView(
         slivers: [
           if (provider.syncMessage != null)
@@ -184,16 +179,11 @@ class _SmsScreenState extends State<SmsScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.inbox_rounded, size: 64, color: Colors.grey[300]),
+                    Icon(Icons.inbox_rounded,
+                        size: 64, color: Colors.grey[300]),
                     const SizedBox(height: 12),
                     const Text('No M-PESA transactions found',
                         style: TextStyle(color: AppTheme.textSecondary)),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: provider.loadTransactions,
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Reload'),
-                    ),
                   ],
                 ),
               ),
@@ -211,25 +201,24 @@ class _SmsScreenState extends State<SmsScreen> {
     );
   }
 
-  void _showAccountDialog(BuildContext context, AuthProvider authProvider) {
+  void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Account'),
-        content: const Text(
-            'You are logged in to Kashio.\nSync transactions using the button below.'),
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              authProvider.logout();
+              context.read<AuthProvider>().logout();
             },
             child: const Text('Logout',
                 style: TextStyle(color: AppTheme.expenseRed)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
           ),
         ],
       ),
