@@ -46,6 +46,9 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<void> _initDeviceId() async {
+  _deviceId = await authService.getSavedDeviceId();
+  if (_deviceId == null) {
+    // fallback: generate and save (for users who registered before this fix)
     final prefs = await SharedPreferences.getInstance();
     _deviceId = prefs.getString('kashio_device_id');
     if (_deviceId == null) {
@@ -53,6 +56,7 @@ class TransactionProvider extends ChangeNotifier {
       await prefs.setString('kashio_device_id', _deviceId!);
     }
   }
+}
 
   // Called when user presses Sync button
   Future<void> syncToBackend() async {

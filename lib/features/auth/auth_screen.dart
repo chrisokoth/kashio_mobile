@@ -92,6 +92,7 @@ class _AuthScreenState extends State<AuthScreen>
                     setState(() => _obscureReg = !_obscureReg),
                 onRegister: () async {
                   final deviceId = const Uuid().v4();
+                  await context.read<AuthProvider>().authService.saveDeviceId(deviceId);
                   final ok = await auth.register(
                     fullName: _regNameCtrl.text.trim(),
                     email: _regEmailCtrl.text.trim(),

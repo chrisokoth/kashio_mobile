@@ -15,6 +15,7 @@ class AuthService {
   static const _accessKey = 'kashio_access_token';
   static const _refreshKey = 'kashio_refresh_token';
   static const _emailKey = 'kashio_email';
+  static const _deviceIdKey = 'kashio_device_id';
 
   // ── token storage ─────────────────────────────────────────────────────────
 
@@ -54,6 +55,16 @@ class AuthService {
     await prefs.remove(_accessKey);
     await prefs.remove(_refreshKey);
   }
+
+  Future<void> saveDeviceId(String deviceId) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_deviceIdKey, deviceId);
+}
+
+Future<String?> getSavedDeviceId() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString(_deviceIdKey);
+}
 
   // ── API calls ──────────────────────────────────────────────────────────────
 
